@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy import Engine, desc, func, select
 from sqlalchemy.orm import Session
 
@@ -46,6 +47,10 @@ def create_app(engine: Engine | None = None, settings: Settings | None = None) -
             yield session
         finally:
             session.close()
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse(url="/docs")
 
     @app.get("/health")
     def health() -> dict[str, Any]:

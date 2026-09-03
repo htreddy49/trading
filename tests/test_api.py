@@ -14,6 +14,7 @@ def test_api_endpoints(db, tmp_path):
         s.add(MarketRow(ticker="M", title="hello"))
     client = TestClient(create_app(db, settings))
 
+    assert client.get("/", follow_redirects=False).headers["location"] == "/docs"
     assert client.get("/health").json()["trading_mode"] == "paper"
     assert client.get("/config").json()["kalshi_api_key_id"] == "***"
     assert client.get("/markets").json()[0]["ticker"] == "M"
