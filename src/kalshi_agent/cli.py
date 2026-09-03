@@ -54,6 +54,14 @@ def status() -> None:
                     typer.echo(f"balance={bal.balance}c portfolio_value={bal.portfolio_value}c")
             except KalshiError as exc:
                 typer.echo(f"kalshi error: {exc}")
+                if exc.status_code == 401:
+                    other = "prod" if s.kalshi_env.value == "demo" else "demo"
+                    typer.echo(
+                        f"hint: this key id was not accepted by the {s.kalshi_env.value} exchange. "
+                        f"Demo (demo.kalshi.co) and production (kalshi.com) keys are separate; "
+                        f"if you created the key on the other site set KALSHI_ENV={other} in .env, "
+                        "and check KALSHI_API_KEY_ID matches the key whose PEM you saved."
+                    )
 
     asyncio.run(check())
 

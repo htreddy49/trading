@@ -14,6 +14,9 @@ import structlog
 
 def configure_logging(level: str = "INFO", json_output: bool = False) -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=level.upper())
+    # httpx logs every request at INFO; keep our own logs readable.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
