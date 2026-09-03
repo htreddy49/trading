@@ -1,12 +1,20 @@
 {
   "name": "kalshi-agent",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
   },
   "postCreateCommand": "pip install uv && uv venv .venv && uv pip install -e '.[dev]' && cp -n .env.example .env || true",
-  "forwardPorts": [8000, 5432, 6379],
+  "forwardPorts": [
+    8000,
+    5432,
+    6379
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -21,5 +29,7 @@
       }
     }
   },
-  "remoteEnv": { "PATH": "${containerWorkspaceFolder}/.venv/bin:${containerEnv:PATH}" }
+  "remoteEnv": {
+    "PATH": "${containerWorkspaceFolder}/.venv/bin:${containerEnv:PATH}"
+  }
 }
