@@ -433,3 +433,29 @@ def test_summary_does_not_count_ordinary_index_fields_as_settlement(tmp_path):
     s = summarise(tmp_path).as_dict()
     assert s["settlement_window_ticks"] == 0
     assert s["index_fields_seen"] == ["last_60s_average", "value"]
+
+
+def test_summary_looks_inside_the_nested_index_frame(tmp_path):
+    """The live feed wraps the upstream frame in `data`, so the averages are not top level."""
+    from kalshi_agent.recorder.inspect import summarise
+
+    w = RecordWriter(tmp_path, flush_every=1)
+    w.write(
+        "cfbenchmarks_value_5hz",
+        {
+            "sid": 1,
+            "seq": 1,
+            "msg": {
+                "index_id": "BRTI",
+                "value_usd": "81554.23",
+                "source_ts_ms": 1788000000000,
+                "data": {"last_60s_average": "81550.00", "windowed_average_15min": "81549.10"},
+            },
+        },
+    )
+    w.close()
+    s = summarise(tmp_path).as_dict()
+    assert s["settlement_window_ticks"] == 1
+    assert s["windowed_fields_seen"] == ["data.windowed_average_15min"]
+    assert "data.last_60s_average" in s["index_fields_seen"]
+    assert "value_usd" in s["index_fields_seen"]

@@ -80,7 +80,8 @@ rejected the recorder falls back to the once-a-second channel and carries on.
 ## Checking the capture
 
 ```bash
-kalshi-agent capture-stats ./captures
+kalshi-agent capture-stats ./captures      # as JSON
+kalshi-agent api                           # or the Recorder tab in the dashboard
 ```
 
 Reports coverage, the index tick rate, how often the feed stalled for more than two seconds,
@@ -88,6 +89,26 @@ sequence gaps, how many settlement windows were captured, and the strike delays.
 looks like: an index rate near one or five per second depending on the channel, no stalls,
 few or no sequence gaps, and `settlement_window_ticks` growing by about sixty per quarter
 hour.
+
+## What the first live capture showed
+
+Measured against the production exchange rather than assumed:
+
+| Observation | Value |
+| --- | --- |
+| Index feed | `cfbenchmarks_value_5hz` accepted, delivering 4.9 to 5.0 ticks per second |
+| Order book traffic | roughly 340 messages per second across two windows |
+| Sequence gaps | none across 186,000 order book messages |
+| Strike published after the window opened | 3.32 seconds |
+
+The index frame is nested: the averages sit inside a `data` object alongside top-level
+`index_id`, `value_usd`, `source_ts_ms` and `received_at`. The summariser flattens nested
+frames and reports every field name it saw, so a future rename shows up as a changed name
+rather than as a silent zero.
+
+The 3.32 second strike delay is the first real answer to the question the plan raised. For
+those seconds after a window opens, the market exists and the strike does not, which is
+worth investigating once the main strategy is measured.
 
 ## Where this goes next
 

@@ -263,6 +263,19 @@ def create_app(engine: Engine | None = None, settings: Settings | None = None) -
             for e in session.scalars(select(ErrorRow).order_by(desc(ErrorRow.ts)).limit(limit))
         ]
 
+    @app.get("/capture")
+    def capture() -> dict[str, Any]:
+        """Health of the recorder's output, read from disk rather than the database."""
+        from kalshi_agent.recorder.inspect import summarise
+
+        directory = settings.captures_dir
+        if not directory.is_dir():
+            return {"present": False, "directory": str(directory)}
+        data = summarise(directory).as_dict()
+        data["present"] = True
+        data["directory"] = str(directory)
+        return data
+
     # -- controls -----------------------------------------------------------------
     @app.post("/kill-switch")
     def engage_kill_switch() -> dict[str, Any]:

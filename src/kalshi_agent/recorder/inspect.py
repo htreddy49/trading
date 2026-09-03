@@ -16,6 +16,26 @@ from typing import Any
 from kalshi_agent.recorder.writer import read_records
 
 NS_PER_SECOND = 1_000_000_000
+MAX_FLATTEN_DEPTH = 3
+
+
+def flatten(obj: Any, prefix: str = "", depth: int = 0) -> dict[str, Any]:
+    """Flatten nested dictionaries into dotted keys.
+
+    The index feed wraps the upstream frame in a ``data`` object, so the averages we care
+    about are not top-level. Scanning only the outer keys reports "not present" for
+    something that is sitting one level down.
+    """
+    flat: dict[str, Any] = {}
+    if not isinstance(obj, dict) or depth > MAX_FLATTEN_DEPTH:
+        return flat
+    for key, value in obj.items():
+        name = f"{prefix}{key}"
+        if isinstance(value, dict):
+            flat.update(flatten(value, f"{name}.", depth + 1))
+        else:
+            flat[name] = value
+    return flat
 
 
 @dataclass
@@ -92,12 +112,13 @@ def summarise(directory: str | Path) -> CaptureSummary:
 
             if channel.startswith("cfbenchmarks"):
                 s.index_ticks += 1
-                s.index_fields.update(body.keys())
+                fields = flatten(body)
+                s.index_fields.update(fields.keys())
                 # The settlement statistic is only published in the final minute, and the
                 # exact field name is the exchange's to choose. Match on shape rather than
                 # on one hardcoded name, and report which names were actually seen, so a
                 # rename shows up as a changed name instead of a silent zero.
-                for key, value in body.items():
+                for key, value in fields.items():
                     lowered = key.lower()
                     if value is None:
                         continue

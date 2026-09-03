@@ -28,6 +28,9 @@
     }
   }
   * { box-sizing: border-box; }
+  /* An author `display` rule outranks the browser's [hidden] styling, so elements laid
+     out with flex or grid stay visible when hidden. Make hiding win explicitly. */
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -100,6 +103,13 @@
   button.action:hover { border-color: var(--accent); }
   button.action.danger { color: var(--neg); }
   svg.spark { display: block; width: 100%; height: 64px; }
+  code.field {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    background: var(--chip); border-radius: 4px; padding: 2px 7px; margin: 0 6px 6px 0;
+    display: inline-block;
+  }
+  code.field.hit { background: color-mix(in srgb, var(--pos) 20%, transparent); color: var(--pos); }
+  .fieldwrap { padding: 12px 14px; }
 </style>
 </head>
 <body>
@@ -116,6 +126,7 @@
 <div class="tabs" role="tablist">
   <button class="tab" role="tab" id="tab-paper" aria-selected="true" aria-controls="panel">Paper trader</button>
   <button class="tab" role="tab" id="tab-live" aria-selected="false" aria-controls="panel">Live trader</button>
+  <button class="tab" role="tab" id="tab-recorder" aria-selected="false" aria-controls="panel">Recorder</button>
 </div>
 
 <main>
@@ -132,12 +143,22 @@
     <div class="scroll" id="orders"></div>
     <h2>Recent decisions</h2>
     <div class="scroll" id="decisions"></div>
+
+    <div id="recorder-view" hidden>
+      <div class="banner" id="rec-banner"></div>
+      <div class="tiles" id="rec-tiles"></div>
+      <h2>Messages by channel</h2>
+      <div class="scroll" id="rec-channels"></div>
+      <h2>Index feed fields</h2>
+      <div class="scroll" id="rec-fields"></div>
+    </div>
   </section>
 </main>
 
 <script>
 const $ = (id) => document.getElementById(id);
-let mode = (location.hash.replace("#", "") === "live") ? "live" : "paper";
+const VIEWS = ["paper", "live", "recorder"];
+let mode = VIEWS.includes(location.hash.replace("#", "")) ? location.hash.replace("#", "") : "paper";
 let timer = null;
 
 const money = (c) => (c == null ? "—" : (c / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }));
@@ -251,8 +272,77 @@ function render(d) {
   kill.dataset.engaged = d.kill_switch ? "1" : "";
 }
 
+function renderRecorder(d) {
+  const b = $("rec-banner");
+  if (!d.present) {
+    b.className = "banner";
+    b.innerHTML = `No capture directory at <code>${esc(d.directory)}</code>. Run <code>kalshi-agent record</code> to start capturing.`;
+  } else if (d.records === 0) {
+    b.className = "banner";
+    b.textContent = "The capture directory is empty. The recorder has not written anything yet.";
+  } else if (d.settlement_window_ticks === 0) {
+    b.className = "banner";
+    b.innerHTML = "No settlement averages captured yet. These are only published in the final minute before each quarter hour, so a capture must span :00, :15, :30 or :45.";
+  } else {
+    b.className = "banner ok";
+    b.textContent = "Capture is healthy and contains the settlement statistic.";
+  }
+
+  const hours = d.duration_hours ?? 0;
+  const tiles = [
+    ["Records", (d.records ?? 0).toLocaleString(), ""],
+    ["Duration", hours < 1 ? `${Math.round(hours * 60)} min` : `${hours.toFixed(1)} h`, ""],
+    ["Index rate", d.index_rate_hz != null ? `${d.index_rate_hz.toFixed(2)} Hz` : "—", ""],
+    ["Settlement ticks", (d.settlement_window_ticks ?? 0).toLocaleString(),
+      d.settlement_window_ticks ? "pos" : "neg"],
+    ["Sequence gaps", String(d.sequence_gaps ?? 0), d.sequence_gaps ? "neg" : "pos"],
+    ["Feed stalls > 2s", String(d.index_stalls_over_2s ?? 0), d.index_stalls_over_2s ? "neg" : "pos"],
+    ["Worst index gap", d.max_index_gap_s != null ? `${d.max_index_gap_s.toFixed(2)} s` : "—", ""],
+    ["Errors", String(d.errors ?? 0), d.errors ? "neg" : "pos"],
+  ];
+  $("rec-tiles").innerHTML = tiles.map(([label, value, c]) =>
+    `<div class="tile"><div class="label">${label}</div><div class="value ${c}">${value}</div></div>`).join("");
+
+  const channels = Object.entries(d.channels || {});
+  $("rec-channels").innerHTML = table(
+    [{ label: "Channel" }, { label: "Messages", num: 1 }, { label: "Share", num: 1 }],
+    channels,
+    ([name, n]) => `<tr><td>${esc(name)}</td><td class="num">${n.toLocaleString()}</td>
+      <td class="num">${((n / d.records) * 100).toFixed(1)}%</td></tr>`);
+
+  const seen = d.index_fields_seen || [];
+  const hits = new Set(d.windowed_fields_seen || []);
+  const delays = (d.strike_delays_s || []).filter((x) => x < 120);
+  $("rec-fields").innerHTML = `<div class="fieldwrap">
+      ${seen.length ? seen.map((f) => `<code class="field ${hits.has(f) ? "hit" : ""}">${esc(f)}</code>`).join("")
+                    : '<span style="color:var(--muted)">No index messages captured yet.</span>'}
+      <div style="margin-top:12px;color:var(--muted);font-size:13px">
+        Highlighted fields carry the settlement average.
+        ${delays.length ? `Strike published ${delays.map((d2) => d2.toFixed(2) + "s").join(", ")} after the window opened.`
+                        : "No window has been caught at its open yet."}
+      </div>
+    </div>`;
+}
+
+function setView(isRecorder) {
+  for (const id of ["banner", "tiles", "equity-wrap", "positions", "orders", "decisions"]) {
+    const el = $(id);
+    if (el) el.hidden = isRecorder;
+  }
+  document.querySelectorAll("#panel > h2").forEach((h) => { h.hidden = isRecorder; });
+  $("recorder-view").hidden = !isRecorder;
+}
+
 async function refresh() {
   try {
+    if (mode === "recorder") {
+      const r = await fetch("/capture", { cache: "no-store" });
+      if (r.ok) {
+        renderRecorder(await r.json());
+        $("chip-updated").textContent = "updated " + new Date().toLocaleTimeString("en-US", { hour12: false });
+      }
+      return;
+    }
     const r = await fetch(`/dashboard/${mode}`, { cache: "no-store" });
     if (r.ok) render(await r.json());
   } catch (e) { $("chip-updated").textContent = "offline"; }
@@ -261,13 +351,16 @@ async function refresh() {
 function select(next) {
   mode = next;
   location.hash = next;
-  $("tab-paper").setAttribute("aria-selected", String(next === "paper"));
-  $("tab-live").setAttribute("aria-selected", String(next === "live"));
+  for (const t of ["paper", "live", "recorder"]) {
+    $("tab-" + t).setAttribute("aria-selected", String(next === t));
+  }
+  setView(next === "recorder");
   refresh();
 }
 
 $("tab-paper").onclick = () => select("paper");
 $("tab-live").onclick = () => select("live");
+$("tab-recorder").onclick = () => select("recorder");
 $("kill").onclick = async () => {
   const engaged = $("kill").dataset.engaged;
   if (!engaged && !confirm("Engage the kill switch? The agent will stop placing new orders.")) return;

@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     paper_fill_slippage_cents: int = 1
 
     # --- API ---------------------------------------------------------------------
+    # --- recorder ------------------------------------------------------------------
+    captures_dir: Path = Path("./captures")
+
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
