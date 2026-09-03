@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     log_json: bool = False
 
     # --- Kalshi ------------------------------------------------------------------
-    kalshi_env: KalshiEnv = KalshiEnv.DEMO
+    kalshi_env: KalshiEnv = KalshiEnv.PROD
     kalshi_api_key_id: str | None = Field(default=None, description="Kalshi API key id")
     kalshi_private_key_path: Path | None = Field(
         default=None, description="Path to the RSA private key (PEM) for the API key"

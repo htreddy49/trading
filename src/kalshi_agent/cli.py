@@ -71,7 +71,7 @@ def setup(
     key_id: Annotated[str | None, typer.Option(help="Kalshi API key id")] = None,
     pem_file: Annotated[str | None, typer.Option(help="Path to the downloaded private key")] = None,
 ) -> None:
-    """Create the local, git-ignored credential files: .env and secrets/kalshi-demo.pem."""
+    """Create the local, git-ignored credential files: .env and secrets/kalshi.pem."""
     import re
     import shutil
     from pathlib import Path
@@ -91,7 +91,7 @@ def setup(
 
     secrets_dir = Path("secrets")
     secrets_dir.mkdir(exist_ok=True)
-    target = secrets_dir / "kalshi-demo.pem"
+    target = secrets_dir / "kalshi.pem"
     if pem_file:
         pem = Path(pem_file).read_text()
     else:

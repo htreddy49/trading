@@ -4,11 +4,12 @@
 
 | Name | `KALSHI_ENV` | `TRADING_MODE` | Where |
 | --- | --- | --- | --- |
-| dev | demo | paper | laptop / Codespaces, SQLite or Compose |
-| staging | demo | live | cloud VM, Compose, demo API key (fake money) |
-| prod | prod | live | separate cloud VM, prod API key from a secret manager |
+| dev | prod | paper | laptop / Codespaces, SQLite or Compose. Real prices, simulated orders |
+| staging | prod | paper | cloud VM, Compose, running 24/7 to validate the strategy |
+| prod | prod | live | separate cloud VM, API key from a secret manager, `LIVE_TRADING_ACKNOWLEDGED=true` |
 
-Never point the dev or staging stack at `KALSHI_ENV=prod`.
+The Kalshi demo exchange (`KALSHI_ENV=demo`) is optional; it needs a separate
+demo.kalshi.co account and key. Only the prod row may ever set `TRADING_MODE=live`.
 
 ## Deploying to a cloud VM
 
@@ -16,7 +17,7 @@ Never point the dev or staging stack at `KALSHI_ENV=prod`.
 # on the VM
 git clone https://github.com/htreddy49/trading.git && cd trading
 cp .env.example .env            # edit: KALSHI_ENV, TRADING_MODE, key id, risk limits
-mkdir -p secrets && chmod 700 secrets   # PEM at ./secrets/kalshi-demo.pem, mounted read-only into containers
+mkdir -p secrets && chmod 700 secrets   # PEM at ./secrets/kalshi.pem, mounted read-only into containers
 docker compose up -d --build
 docker compose logs -f engine
 ```

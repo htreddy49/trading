@@ -3,11 +3,14 @@ import pytest
 from kalshi_agent.config import KalshiEnv, Settings, TradingMode
 
 
-def test_defaults_are_paper_demo():
+def test_defaults_are_paper_on_prod_exchange():
     s = Settings(_env_file=None)
     assert s.trading_mode is TradingMode.PAPER
-    assert s.kalshi_env is KalshiEnv.DEMO
-    assert "demo-api" in s.kalshi_base_url
+    assert s.kalshi_env is KalshiEnv.PROD
+    assert "api.elections.kalshi.com" in s.kalshi_base_url
+    assert Settings(_env_file=None, kalshi_env="demo").kalshi_base_url.startswith(
+        "https://demo-api"
+    )
 
 
 def test_live_prod_requires_ack():

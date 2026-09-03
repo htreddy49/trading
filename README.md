@@ -41,7 +41,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and
 | Docker, Compose (postgres, redis, collector, engine, api), devcontainer, CI | repo root | done |
 | Next.js dashboard, news/data feeds, performance-analysis agent | | roadmap |
 
-## Quick start (local, paper trading against the Kalshi demo exchange)
+## Quick start (local, paper trading with real market data)
 
 ```bash
 make install               # uv venv + editable install, copies .env.example -> .env
@@ -73,7 +73,7 @@ Docker-in-Docker, Node 22, the Claude Code extension, and the project itself.
 
 | Command | Purpose |
 | --- | --- |
-| `kalshi-agent setup` | Create the git-ignored `.env` and `secrets/kalshi-demo.pem` from your key id and PEM |
+| `kalshi-agent setup` | Create the git-ignored `.env` and `secrets/kalshi.pem` from your key id and PEM |
 | `kalshi-agent status` | Effective config, Kalshi connectivity, balance, kill-switch state |
 | `kalshi-agent db init` | Create tables (dev). Production: `alembic upgrade head` |
 | `kalshi-agent collect [--once] [--orderbooks]` | Market collector |
@@ -85,7 +85,7 @@ Docker-in-Docker, Node 22, the Claude Code extension, and the project itself.
 
 ## Safety rails
 
-* `TRADING_MODE=paper` is the default everywhere, including Compose.
+* `TRADING_MODE=paper` is the default everywhere, including Compose. Paper mode never sends an order, even against the production exchange.
 * `TRADING_MODE=live` with `KALSHI_ENV=prod` refuses to start unless
   `LIVE_TRADING_ACKNOWLEDGED=true`.
 * The live broker must be explicitly armed by the engine; the settings validator and the
