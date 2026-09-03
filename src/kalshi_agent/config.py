@@ -77,27 +77,29 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # --- collector ---------------------------------------------------------------
-    collector_interval_seconds: float = 30.0
+    collector_interval_seconds: float = 10.0
     collector_series_tickers: list[str] = Field(
-        default_factory=list, description="Only collect these series (empty = all open markets)"
+        default_factory=lambda: ["KXBTC15M", "KXETH15M"],
+        description="Only collect these series (empty = all open markets)",
     )
-    collector_max_markets: int = 500
+    collector_max_markets: int = 200
 
     # --- engine ------------------------------------------------------------------
-    engine_interval_seconds: float = 60.0
-    strategy_name: str = "simple_edge"
+    engine_interval_seconds: float = 15.0
+    strategy_name: str = "crypto_15m"
     strategy_params: dict[str, float] = Field(default_factory=dict)
 
     # --- risk limits (all money in cents) ----------------------------------------
-    risk_min_edge: float = Field(default=0.04, description="Minimum edge (probability points)")
-    risk_max_order_contracts: int = 25
-    risk_max_position_contracts: int = 100
-    risk_max_market_exposure_cents: int = 5_000
-    risk_max_total_exposure_cents: int = 50_000
-    risk_max_daily_loss_cents: int = 5_000
-    risk_min_liquidity_contracts: int = 50
-    risk_max_spread_cents: int = 10
+    risk_min_edge: float = Field(default=0.05, description="Minimum edge (probability points)")
+    risk_max_order_contracts: int = 10
+    risk_max_position_contracts: int = 20
+    risk_max_market_exposure_cents: int = 1_000
+    risk_max_total_exposure_cents: int = 10_000
+    risk_max_daily_loss_cents: int = 2_000
+    risk_min_liquidity_contracts: int = 20
+    risk_max_spread_cents: int = 6
     risk_kill_switch_file: Path = Path("./KILL_SWITCH")
+    risk_duplicate_window_seconds: int = 120
 
     # --- paper trading -----------------------------------------------------------
     paper_starting_balance_cents: int = 100_000

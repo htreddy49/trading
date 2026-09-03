@@ -18,8 +18,9 @@ Kalshi ─► Market Collector ─► Market DB ─► Strategy ─► Edge Dete
                                                                                         (paper | live)
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and
-[docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design,
+[docs/CRYPTO_15M.md](docs/CRYPTO_15M.md) for the 15-minute crypto strategy the defaults
+target, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
 
 ## What is in the box
 
@@ -29,7 +30,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and
 | Kalshi WebSocket subscriber | `kalshi_agent.kalshi.ws` | minimal |
 | Postgres/SQLite schema + Alembic migrations (markets, snapshots, signals, decisions, orders, fills, positions, P&L, strategy versions, backtests, errors) | `kalshi_agent.db` | done |
 | Market collector (polls markets, writes snapshots) | `kalshi_agent.collector` | done |
-| Strategy interface + registry + two baseline strategies | `kalshi_agent.strategy` | done |
+| Strategy interface + registry + baseline strategies | `kalshi_agent.strategy` | done |
+| `crypto_15m`: lognormal model for 15-minute BTC/ETH strike markets | `kalshi_agent.strategy.crypto` | done |
+| Data feeds: Coinbase spot + realized volatility | `kalshi_agent.data` | done |
 | Edge detector (net of Kalshi fees) | `kalshi_agent.signals` | done |
 | Risk engine: kill switch, exchange status, edge, liquidity, spread, size, position, exposure, daily loss, duplicate order | `kalshi_agent.risk` | done |
 | Paper broker with orderbook-walking fills and virtual P&L | `kalshi_agent.execution.paper` | done |

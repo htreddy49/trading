@@ -47,17 +47,17 @@ class MarketCollector:
         )
 
     async def fetch_markets(self) -> list[Market]:
-        markets: list[Market] = []
+        markets: dict[str, Market] = {}  # keyed by ticker so overlapping series snapshot once
         if self.series_tickers:
             for series in self.series_tickers:
                 async for m in self.client.iter_markets(
                     series_ticker=series, max_markets=self.max_markets
                 ):
-                    markets.append(m)
+                    markets.setdefault(m.ticker, m)
         else:
             async for m in self.client.iter_markets(max_markets=self.max_markets):
-                markets.append(m)
-        return markets
+                markets.setdefault(m.ticker, m)
+        return list(markets.values())
 
     async def collect_once(self) -> int:
         """Fetch open markets and persist one snapshot per market. Returns count."""

@@ -78,7 +78,7 @@ async def test_engine_cycle_paper_trades_and_records(db):
         n = await engine.run_once()
     finally:
         await client.close()
-    assert n == 1
+    assert n == 1  # the same market returned for two configured series is traded once
     with session_scope(db) as s:
         assert s.scalar(select(func.count()).select_from(SignalRow)) == 1
         decision = s.scalars(select(AgentDecision)).one()

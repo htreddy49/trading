@@ -125,6 +125,9 @@ def db_init() -> None:
 def collect(
     once: Annotated[bool, typer.Option(help="Run a single collection cycle")] = False,
     orderbooks: Annotated[bool, typer.Option(help="Also fetch orderbooks")] = False,
+    series: Annotated[
+        str | None, typer.Option(help="Comma separated series tickers, e.g. KXBTC15M,KXETH15M")
+    ] = None,
 ) -> None:
     """Poll Kalshi markets and store snapshots."""
     from kalshi_agent.collector.service import MarketCollector
@@ -139,6 +142,8 @@ def collect(
         async with KalshiClient.from_settings(s) as client:
             collector = MarketCollector.from_settings(client, engine, s)
             collector.fetch_orderbooks = orderbooks
+            if series:
+                collector.series_tickers = [x.strip() for x in series.split(",") if x.strip()]
             if once:
                 n = await collector.collect_once()
                 typer.echo(f"collected {n} markets")
@@ -175,7 +180,7 @@ def trade(
             else:
                 await te.run_forever(s.engine_interval_seconds)
         finally:
-            await te.client.close()
+            await te.close()
 
     asyncio.run(main())
 

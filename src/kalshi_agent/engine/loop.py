@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import Engine, select
 
 from kalshi_agent.config import Settings, TradingMode, get_settings
+from kalshi_agent.data.base import DataFeed, build_feeds
 from kalshi_agent.db.models import (
     AgentDecision,
     ErrorRow,
@@ -54,6 +55,7 @@ class TradingEngine:
         portfolio: Portfolio,
         settings: Settings,
         fetch_orderbooks: bool = True,
+        feeds: list[DataFeed] | None = None,
     ) -> None:
         self.client = client
         self.db = db
@@ -64,6 +66,7 @@ class TradingEngine:
         self.portfolio = portfolio
         self.settings = settings
         self.fetch_orderbooks = fetch_orderbooks
+        self.feeds = feeds if feeds is not None else build_feeds(list(strategy.feeds))
         self.recent_orders: list[tuple[str, datetime]] = []
         self.daily_pnl_cents = 0
         self._day = datetime.now(UTC).date()
@@ -84,10 +87,11 @@ class TradingEngine:
             log.warning("engine.live_mode", kalshi_env=settings.kalshi_env.value)
         else:
             broker = PaperBroker(portfolio, slippage_cents=settings.paper_fill_slippage_cents)
+        strategy = get_strategy(settings.strategy_name, **settings.strategy_params)
         return cls(
             client=client,
             db=db,
-            strategy=get_strategy(settings.strategy_name, **settings.strategy_params),
+            strategy=strategy,
             broker=broker,
             risk=RiskEngine(RiskLimits.from_settings(settings)),
             edge=EdgeDetector(min_edge=settings.risk_min_edge),
@@ -119,15 +123,16 @@ class TradingEngine:
         ]
 
     async def fetch_markets(self) -> list[Market]:
-        markets: list[Market] = []
+        # Dict keyed by ticker: a market reachable from two configured series is traded once.
+        markets: dict[str, Market] = {}
         series: list[str | None] = list(self.settings.collector_series_tickers) or [None]
         for s in series:
             async for m in self.client.iter_markets(
                 series_ticker=s, max_markets=self.settings.collector_max_markets
             ):
                 if m.is_open:
-                    markets.append(m)
-        return markets
+                    markets.setdefault(m.ticker, m)
+        return list(markets.values())
 
     # -- one market ---------------------------------------------------------------
     async def process_market(self, market: Market, *, trading_active: bool = True) -> None:
@@ -138,12 +143,23 @@ class TradingEngine:
             except KalshiError as exc:
                 self.record_error("engine.orderbook", str(exc), {"ticker": market.ticker})
 
+        extra: dict[str, object] = {}
+        for feed in self.feeds:
+            try:
+                features = await feed.features(market)
+            except Exception as exc:  # noqa: BLE001 - a bad feed must not stop trading
+                self.record_error("engine.feed", str(exc), {"feed": feed.name})
+                continue
+            if features is not None:
+                extra[feed.name] = features
+
         ctx = MarketContext(
             market=market,
             orderbook=orderbook,
             history=self.load_history(market.ticker),
             now=datetime.now(UTC),
             position=self.portfolio.net_position(market.ticker),
+            extra=extra,
         )
         signal = self.strategy.evaluate(ctx)
         if signal is None:
@@ -321,6 +337,11 @@ class TradingEngine:
             mode=self.broker.mode,
         )
         return len(markets)
+
+    async def close(self) -> None:
+        for feed in self.feeds:
+            await feed.close()
+        await self.client.close()
 
     async def run_forever(self, interval_seconds: float) -> None:
         log.info(

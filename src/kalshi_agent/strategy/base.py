@@ -74,6 +74,7 @@ class Signal:
 class Strategy(ABC):
     name: str = "base"
     version: str = "0.0.0"
+    feeds: tuple[str, ...] = ()  # data feeds this strategy needs in ``ctx.extra``
 
     def __init__(self, **params: Any) -> None:
         self.params = params

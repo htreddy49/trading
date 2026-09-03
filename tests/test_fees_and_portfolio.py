@@ -19,8 +19,10 @@ def test_kalshi_fee(price, count, expected):
     assert kalshi_fee_cents(price, count) == expected
 
 
-def test_maker_fee_zero_by_default():
-    assert kalshi_fee_cents(50, 100, is_taker=False) == 0
+def test_maker_fee_is_cheaper_than_taker():
+    maker, taker = kalshi_fee_cents(50, 100, is_taker=False), kalshi_fee_cents(50, 100)
+    assert 0 < maker < taker
+    assert kalshi_fee_cents(50, 100, rate=0.0) == 0  # explicit zero rate still supported
 
 
 def test_buy_yes_then_settle_yes():

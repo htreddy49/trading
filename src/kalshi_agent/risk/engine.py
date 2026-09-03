@@ -47,6 +47,7 @@ class RiskLimits:
             min_liquidity_contracts=s.risk_min_liquidity_contracts,
             max_spread_cents=s.risk_max_spread_cents,
             kill_switch_file=s.risk_kill_switch_file,
+            duplicate_window_seconds=s.risk_duplicate_window_seconds,
         )
 
 

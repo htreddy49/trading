@@ -2,8 +2,8 @@
 
 Kalshi's standard taker fee is ``0.07 * C * P * (1 - P)`` dollars, rounded **up** to the
 next cent, where ``C`` is the number of contracts and ``P`` the price in dollars. Maker
-orders are currently free on most markets. The rate is configurable because Kalshi has
-changed it and applies different schedules to some series.
+orders pay roughly a quarter of that. The rate is configurable because Kalshi has changed
+it and applies different multipliers to some series (index markets use 0.035).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 
 DEFAULT_TAKER_RATE = 0.07
-DEFAULT_MAKER_RATE = 0.0
+DEFAULT_MAKER_RATE = 0.0175  # roughly a quarter of the taker rate
 
 
 def kalshi_fee_cents(

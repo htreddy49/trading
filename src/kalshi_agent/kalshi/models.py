@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Side(StrEnum):
@@ -63,6 +64,26 @@ class Market(BaseModel):
     close_time: datetime | None = None
     expiration_time: datetime | None = None
     result: str | None = None
+    # strike markets (e.g. KXBTC15M): the level the reference price must beat
+    strike_type: str | None = None
+    floor_strike: float | None = None
+    cap_strike: float | None = None
+    expiration_value: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalise_prices(cls, data: Any) -> Any:
+        """Accept both legacy cent integers and the newer ``*_dollars`` fixed-point strings."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        for field in ("yes_bid", "yes_ask", "no_bid", "no_ask", "last_price"):
+            if data.get(field) is None and data.get(f"{field}_dollars") not in (None, ""):
+                data[field] = int(round(float(data[f"{field}_dollars"]) * 100))
+        for field in ("volume", "volume_24h", "open_interest", "liquidity"):
+            if data.get(field) is None and data.get(f"{field}_fp") not in (None, ""):
+                data[field] = int(float(data[f"{field}_fp"]))
+        return data
 
     @property
     def yes_mid(self) -> float | None:
@@ -100,11 +121,17 @@ class Orderbook(BaseModel):
     @classmethod
     def from_api(cls, ticker: str, payload: dict) -> Orderbook:
         book = payload.get("orderbook", payload)
-        return cls(
-            ticker=ticker,
-            yes=[OrderbookLevel(price=p, quantity=q) for p, q in (book.get("yes") or [])],
-            no=[OrderbookLevel(price=p, quantity=q) for p, q in (book.get("no") or [])],
-        )
+
+        def levels(side: str) -> list[OrderbookLevel]:
+            raw = book.get(side)
+            if raw is None and book.get(f"{side}_dollars") is not None:
+                return [
+                    OrderbookLevel(price=int(round(float(p) * 100)), quantity=int(float(q)))
+                    for p, q in book[f"{side}_dollars"]
+                ]
+            return [OrderbookLevel(price=int(p), quantity=int(float(q))) for p, q in (raw or [])]
+
+        return cls(ticker=ticker, yes=levels("yes"), no=levels("no"))
 
     @property
     def best_yes_bid(self) -> OrderbookLevel | None:

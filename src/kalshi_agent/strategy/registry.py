@@ -32,7 +32,7 @@ _loaded = False
 def _load_builtins() -> None:
     global _loaded
     if not _loaded:
-        from kalshi_agent.strategy import builtin  # noqa: F401
+        from kalshi_agent.strategy import builtin, crypto  # noqa: F401
 
         _loaded = True
 

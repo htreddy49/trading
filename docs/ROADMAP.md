@@ -15,8 +15,9 @@
    about (`COLLECTOR_SERIES_TICKERS`) so the backtester has history.
 2. **Dashboard.** Next.js app over the FastAPI endpoints: markets, positions, orders,
    trades, P&L, strategy, risk, backtests, agent decisions, logs.
-3. **Data feeds.** Populate `MarketContext.extra` from news/data sources; add feature
-   tables to the DB.
+3. **More data feeds.** The Coinbase spot/vol feed exists; add news and other sources,
+   and persist their features so backtests can replay them. Storing spot alongside each
+   snapshot is the prerequisite for backtesting `crypto_15m` faithfully.
 4. **Probability models.** Replace the heuristic estimates in `strategy/builtin.py` with
    calibrated models; log calibration (Brier score) per strategy version.
 5. **Performance analysis agent.** A Claude Code task that reads `agent_decisions`,
