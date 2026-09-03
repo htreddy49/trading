@@ -39,10 +39,11 @@ target, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
 | Live broker (double-guarded) | `kalshi_agent.execution.live` | done |
 | Backtester replaying stored snapshots through the same pipeline; ROI, drawdown, Sharpe, losing streak, fees | `kalshi_agent.backtest` | done |
 | Trading engine loop (paper/live share the same code path) | `kalshi_agent.engine` | done |
-| FastAPI dashboard backend + kill switch endpoint | `kalshi_agent.api` | done |
+| FastAPI backend + kill switch endpoint | `kalshi_agent.api` | done |
+| Web dashboard with Paper trader / Live trader tabs, served at `/` | `kalshi_agent.api` | done |
 | CLI | `kalshi_agent.cli` | done |
 | Docker, Compose (postgres, redis, collector, engine, api), devcontainer, CI | repo root | done |
-| Next.js dashboard, news/data feeds, performance-analysis agent | | roadmap |
+| News/data feeds beyond crypto, performance-analysis agent | | roadmap |
 
 ## Quick start (local, paper trading with real market data)
 
@@ -53,7 +54,7 @@ make install               # uv venv + editable install, copies .env.example -> 
 .venv/bin/kalshi-agent collect --once      # pull open markets into the DB
 .venv/bin/kalshi-agent trade --once        # one paper-trading cycle
 .venv/bin/kalshi-agent backtest --days 30  # replay collected snapshots
-.venv/bin/kalshi-agent api                 # http://localhost:8000/docs
+.venv/bin/kalshi-agent api                 # dashboard at http://localhost:8000/
 ```
 
 Market data endpoints work without credentials, so `collect` and `backtest` run
@@ -82,7 +83,7 @@ Docker-in-Docker, Node 22, the Claude Code extension, and the project itself.
 | `kalshi-agent collect [--once] [--orderbooks]` | Market collector |
 | `kalshi-agent trade [--once]` | Trading engine, paper or live per `TRADING_MODE` |
 | `kalshi-agent backtest --days 30 [--strategy x] [--params '{...}']` | Backtest stored snapshots |
-| `kalshi-agent api` | Dashboard API on `:8000` |
+| `kalshi-agent api` | Dashboard on `:8000`, API docs at `/docs` |
 | `kalshi-agent kill-switch [--release]` | Stop all new orders immediately |
 | `kalshi-agent strategies` | List registered strategies |
 
@@ -122,7 +123,7 @@ src/kalshi_agent/
   execution/         paper and live brokers
   backtest/          replay engine + metrics
   engine/            trading loop
-  api/               FastAPI app
+  api/               FastAPI app + dashboard.html
   cli.py
 alembic/             migrations
 docs/                architecture, roadmap, runbook

@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from pathlib import Path
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from sqlalchemy import Engine, desc, func, select
 from sqlalchemy.orm import Session
 
@@ -27,10 +28,16 @@ from kalshi_agent.db.models import (
     MarketSnapshot,
     OrderRow,
     PnlSnapshot,
+    PositionRow,
     SignalRow,
 )
 from kalshi_agent.db.session import get_engine, get_session
 from kalshi_agent.strategy.registry import list_strategies
+
+DASHBOARD_HTML = Path(__file__).with_name("dashboard.html")
+
+# Query alias: ?mode=paper | live, or omitted for both.
+Mode = Annotated[str | None, Query(pattern="^(paper|live)$")]
 
 
 def _row(obj: Any) -> dict[str, Any]:
@@ -49,8 +56,8 @@ def create_app(engine: Engine | None = None, settings: Settings | None = None) -
             session.close()
 
     @app.get("/", include_in_schema=False)
-    def root() -> RedirectResponse:
-        return RedirectResponse(url="/docs")
+    def root() -> HTMLResponse:
+        return HTMLResponse(DASHBOARD_HTML.read_text(encoding="utf-8"))
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -111,43 +118,133 @@ def create_app(engine: Engine | None = None, settings: Settings | None = None) -
         ]
 
     @app.get("/decisions")
-    def decisions(limit: int = Query(100, le=1000), session: Session = Depends(db)):
+    def decisions(
+        limit: int = Query(100, le=1000), mode: Mode = None, session: Session = Depends(db)
+    ):
         stmt = select(AgentDecision).order_by(desc(AgentDecision.ts)).limit(limit)
+        if mode:
+            stmt = stmt.where(AgentDecision.trading_mode == mode)
         return [_row(d) for d in session.scalars(stmt)]
 
     @app.get("/orders")
-    def orders(limit: int = Query(100, le=1000), session: Session = Depends(db)):
-        return [
-            _row(o)
-            for o in session.scalars(
-                select(OrderRow).order_by(desc(OrderRow.created_at)).limit(limit)
-            )
-        ]
+    def orders(limit: int = Query(100, le=1000), mode: Mode = None, session: Session = Depends(db)):
+        stmt = select(OrderRow).order_by(desc(OrderRow.created_at)).limit(limit)
+        if mode:
+            stmt = stmt.where(OrderRow.trading_mode == mode)
+        return [_row(o) for o in session.scalars(stmt)]
 
     @app.get("/fills")
-    def fills(limit: int = Query(100, le=1000), session: Session = Depends(db)):
-        return [
-            _row(f)
-            for f in session.scalars(select(FillRow).order_by(desc(FillRow.ts)).limit(limit))
-        ]
+    def fills(limit: int = Query(100, le=1000), mode: Mode = None, session: Session = Depends(db)):
+        stmt = select(FillRow).order_by(desc(FillRow.ts)).limit(limit)
+        if mode:
+            stmt = stmt.join(OrderRow, OrderRow.order_id == FillRow.order_id).where(
+                OrderRow.trading_mode == mode
+            )
+        return [_row(f) for f in session.scalars(stmt)]
+
+    @app.get("/positions")
+    def positions(mode: Mode = None, open_only: bool = True, session: Session = Depends(db)):
+        stmt = select(PositionRow).order_by(desc(PositionRow.updated_at))
+        if mode:
+            stmt = stmt.where(PositionRow.trading_mode == mode)
+        rows = [_row(p) for p in session.scalars(stmt)]
+        if open_only:
+            rows = [r for r in rows if r["yes_contracts"] or r["no_contracts"]]
+        return rows
 
     @app.get("/pnl")
-    def pnl(hours: int = Query(24, le=24 * 90), session: Session = Depends(db)):
+    def pnl(hours: int = Query(24, le=24 * 90), mode: Mode = None, session: Session = Depends(db)):
         since = datetime.now(UTC) - timedelta(hours=hours)
         stmt = select(PnlSnapshot).where(PnlSnapshot.ts >= since).order_by(PnlSnapshot.ts)
+        if mode:
+            stmt = stmt.where(PnlSnapshot.trading_mode == mode)
         return [_row(p) for p in session.scalars(stmt)]
 
     @app.get("/pnl/summary")
-    def pnl_summary(session: Session = Depends(db)) -> dict[str, Any]:
-        latest = session.scalars(
-            select(PnlSnapshot).order_by(desc(PnlSnapshot.ts)).limit(1)
-        ).first()
-        n_orders = session.scalar(select(func.count()).select_from(OrderRow)) or 0
-        n_fills = session.scalar(select(func.count()).select_from(FillRow)) or 0
+    def pnl_summary(mode: Mode = None, session: Session = Depends(db)) -> dict[str, Any]:
+        latest_stmt = select(PnlSnapshot).order_by(desc(PnlSnapshot.ts)).limit(1)
+        orders_stmt = select(func.count()).select_from(OrderRow)
+        fills_stmt = select(func.count()).select_from(FillRow)
+        if mode:
+            latest_stmt = latest_stmt.where(PnlSnapshot.trading_mode == mode)
+            orders_stmt = orders_stmt.where(OrderRow.trading_mode == mode)
+            fills_stmt = fills_stmt.join(OrderRow, OrderRow.order_id == FillRow.order_id).where(
+                OrderRow.trading_mode == mode
+            )
+        latest = session.scalars(latest_stmt).first()
         return {
+            "mode": mode,
             "latest": _row(latest) if latest else None,
-            "orders": n_orders,
-            "fills": n_fills,
+            "orders": session.scalar(orders_stmt) or 0,
+            "fills": session.scalar(fills_stmt) or 0,
+        }
+
+    @app.get("/dashboard/{mode}")
+    def dashboard_data(mode: str, session: Session = Depends(db)) -> dict[str, Any]:
+        """Everything one dashboard tab needs, in a single round trip."""
+        if mode not in ("paper", "live"):
+            raise HTTPException(404, "mode must be paper or live")
+        curve = [
+            _row(p)
+            for p in reversed(
+                session.scalars(
+                    select(PnlSnapshot)
+                    .where(PnlSnapshot.trading_mode == mode)
+                    .order_by(desc(PnlSnapshot.ts))
+                    .limit(200)
+                ).all()
+            )
+        ]
+        open_positions = [
+            _row(p)
+            for p in session.scalars(select(PositionRow).where(PositionRow.trading_mode == mode))
+            if p.yes_contracts or p.no_contracts
+        ]
+        recent_orders = [
+            _row(o)
+            for o in session.scalars(
+                select(OrderRow)
+                .where(OrderRow.trading_mode == mode)
+                .order_by(desc(OrderRow.created_at))
+                .limit(25)
+            )
+        ]
+        recent_decisions = [
+            _row(d)
+            for d in session.scalars(
+                select(AgentDecision)
+                .where(AgentDecision.trading_mode == mode)
+                .order_by(desc(AgentDecision.ts))
+                .limit(25)
+            )
+        ]
+
+        def count_decisions(kind: str) -> int:
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(AgentDecision)
+                    .where(AgentDecision.trading_mode == mode, AgentDecision.decision == kind)
+                )
+                or 0
+            )
+
+        return {
+            "mode": mode,
+            "active": settings.trading_mode.value == mode,
+            "strategy": settings.strategy_name,
+            "kalshi_env": settings.kalshi_env.value,
+            "kill_switch": settings.risk_kill_switch_file.exists(),
+            "latest": curve[-1] if curve else None,
+            "equity_curve": curve,
+            "positions": open_positions,
+            "orders": recent_orders,
+            "decisions": recent_decisions,
+            "counts": {
+                "traded": count_decisions("trade"),
+                "rejected": count_decisions("reject"),
+                "positions": len(open_positions),
+            },
         }
 
     @app.get("/backtests")

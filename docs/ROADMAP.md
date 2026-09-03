@@ -13,8 +13,9 @@
 
 1. **Collect data.** Run the collector for a few weeks against the series you care
    about (`COLLECTOR_SERIES_TICKERS`) so the backtester has history.
-2. **Dashboard.** Next.js app over the FastAPI endpoints: markets, positions, orders,
-   trades, P&L, strategy, risk, backtests, agent decisions, logs.
+2. **Dashboard.** A zero-build dashboard ships at `/` with Paper trader and Live trader
+   tabs (equity, positions, orders, decisions, kill switch). A richer Next.js frontend is
+   still open: market browser, backtest comparison, per-strategy calibration charts.
 3. **More data feeds.** The Coinbase spot/vol feed exists; add news and other sources,
    and persist their features so backtests can replay them. Storing spot alongside each
    snapshot is the prerequisite for backtesting `crypto_15m` faithfully.

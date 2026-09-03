@@ -24,6 +24,7 @@ from kalshi_agent.db.models import (
     MarketSnapshot,
     OrderRow,
     PnlSnapshot,
+    PositionRow,
     SignalRow,
 )
 from kalshi_agent.db.session import session_scope
@@ -301,6 +302,21 @@ class TradingEngine:
                 )
             )
 
+    def record_positions(self) -> None:
+        """Mirror the in-memory portfolio into the positions table for the dashboard."""
+        with session_scope(self.db) as session:
+            for ticker, pos in self.portfolio.positions.items():
+                row = session.get(PositionRow, (ticker, self.broker.mode))
+                if row is None:
+                    row = PositionRow(ticker=ticker, trading_mode=self.broker.mode)
+                    session.add(row)
+                row.yes_contracts = pos.yes_contracts
+                row.no_contracts = pos.no_contracts
+                row.avg_yes_cost = pos.avg_cost(Side.YES)
+                row.avg_no_cost = pos.avg_cost(Side.NO)
+                row.realized_pnl_cents = pos.realized_pnl_cents
+                row.fees_cents = pos.fees_cents
+
     # -- cycle --------------------------------------------------------------------
     async def run_once(self) -> int:
         today = datetime.now(UTC).date()
@@ -325,6 +341,7 @@ class TradingEngine:
 
         realized_before = self.portfolio.realized_pnl_cents
         self.daily_pnl_cents += self.portfolio.realized_pnl_cents - realized_before
+        self.record_positions()
         self.record_pnl(marks)
         cutoff = datetime.now(UTC) - timedelta(hours=1)
         self.recent_orders = [(t, ts) for t, ts in self.recent_orders if ts > cutoff]
