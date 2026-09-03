@@ -87,31 +87,46 @@ class IndexState:
     def age_seconds(self) -> float:
         return (time.time_ns() - self.received_ns) / 1e9
 
-    def realised_vol_annual(self, *, lookback_seconds: float = 900.0, floor: float = 0.10) -> float:
-        """Annualised volatility of the index from its own ticks.
+    def realised_vol_annual(
+        self,
+        *,
+        lookback_seconds: float = 900.0,
+        bucket_seconds: float = 1.0,
+        floor: float = 0.10,
+        min_buckets: int = 30,
+    ) -> float:
+        """Annualised volatility of the index, from its own ticks.
 
         Estimated from the index rather than from a crypto exchange, because the index is
         built from order book depth across venues and is genuinely smoother than any one
         venue's trades. Using an exchange price would overstate it.
+
+        Ticks are resampled onto a fixed grid before returns are taken. Dividing each
+        return by the gap between irregular ticks amplifies noise without limit as that
+        gap shrinks, so a burst of closely spaced messages would imply enormous
+        volatility and silently stop the strategy trading. A fixed grid cannot do that.
         """
-        if len(self.history) < 30:
+        if len(self.history) < min_buckets:
             return floor
-        cutoff = self.history[-1][0] - lookback_seconds
-        points = [(t, v) for t, v in self.history if t >= cutoff and v > 0]
-        if len(points) < 30:
+        latest = self.history[-1][0]
+        cutoff = latest - lookback_seconds
+        buckets: dict[int, float] = {}
+        for ts, value in self.history:
+            if ts >= cutoff and value > 0:
+                buckets[int(ts // bucket_seconds)] = value  # last value wins in each bucket
+        if len(buckets) < min_buckets:
             return floor
-        rets, gaps = [], []
-        for (t0, v0), (t1, v1) in zip(points, points[1:], strict=False):
-            dt = t1 - t0
-            if dt <= 0 or v0 <= 0 or v1 <= 0:
-                continue
-            rets.append(math.log(v1 / v0) / math.sqrt(dt))  # scale to one second
-            gaps.append(dt)
-        if len(rets) < 20:
+        rets = [
+            math.log(buckets[b] / buckets[b - 1])
+            for b in sorted(buckets)
+            if b - 1 in buckets and buckets[b - 1] > 0
+        ]
+        if len(rets) < min_buckets - 1:
             return floor
         mean = fmean(rets)
         var = sum((r - mean) ** 2 for r in rets) / (len(rets) - 1)
-        return max(math.sqrt(var) * math.sqrt(SECONDS_PER_YEAR), floor)
+        per_bucket = math.sqrt(var)
+        return max(per_bucket * math.sqrt(SECONDS_PER_YEAR / bucket_seconds), floor)
 
     def sigma_one_second(self, **kw: Any) -> float:
         """Standard deviation of a one-second move, in price units."""

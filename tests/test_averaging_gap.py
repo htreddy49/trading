@@ -241,3 +241,35 @@ async def test_feed_returns_none_for_unrelated_markets():
         assert got["sigma_1s_safe"] >= got["sigma_1s"], "the safety margin only widens it"
     finally:
         await feed.close()
+
+
+# ------------------------------------------------------------------ volatility estimator
+def test_realised_vol_recovers_a_known_volatility():
+    """Generate ticks at a known volatility and check the estimator finds it."""
+    import math
+    import random
+
+    random.seed(5)
+    target_annual = 0.50
+    sigma_tick = STRIKE * target_annual / math.sqrt(365 * 24 * 3600) * math.sqrt(0.2)
+    state = IndexState("BRTI", STRIKE, time.time_ns())
+    now, value = time.time() - 600, STRIKE
+    for i in range(3000):  # ten minutes at 5 Hz
+        value += random.gauss(0, sigma_tick)
+        state.history.append((now + i * 0.2, value))
+    state.value = value
+    assert state.realised_vol_annual() == pytest.approx(target_annual, abs=0.08)
+
+
+def test_a_burst_of_ticks_cannot_inflate_the_estimate():
+    """Ticks microseconds apart must not imply enormous volatility.
+
+    Dividing each return by the gap between irregular ticks amplifies noise without limit
+    as that gap shrinks. Resampling onto a fixed grid is what prevents a delivery burst
+    from silently stopping the strategy trading.
+    """
+    state = IndexState("BRTI", STRIKE, time.time_ns())
+    now = time.time()
+    for i in range(500):
+        state.history.append((now + i * 0.00002, STRIKE + (2.0 if i % 2 else -2.0)))
+    assert state.realised_vol_annual() == 0.10, "a 10ms burst must fall back to the floor"
