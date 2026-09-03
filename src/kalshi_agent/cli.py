@@ -245,11 +245,11 @@ def api(
     reload: bool = False,
 ) -> None:
     """Serve the dashboard API."""
+    import os
+
     import uvicorn
 
     from kalshi_agent.db.session import get_engine, init_db
-
-    import os
 
     s = get_settings()
     init_db(get_engine())
