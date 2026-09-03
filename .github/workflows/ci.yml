@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kalshi
+          POSTGRES_PASSWORD: kalshi
+          POSTGRES_DB: kalshi_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kalshi" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v3
+      - run: uv venv .venv && uv pip install -e ".[dev]"
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/mypy
+      - run: .venv/bin/pytest -q
+      - name: migrations apply cleanly on postgres
+        env:
+          DATABASE_URL: postgresql+psycopg://kalshi:kalshi@localhost:5432/kalshi_test
+        run: .venv/bin/alembic upgrade head
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t kalshi-agent:ci .
+      - run: docker run --rm kalshi-agent:ci version

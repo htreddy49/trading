@@ -1,0 +1,25 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# local state
+.env
+*.db
+*.db-*
+KILL_SWITCH
+secrets/*
+!secrets/README.md
+!secrets/.gitkeep
+state/
+
+# editors
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,75 @@
+# Local/staging stack. Every service reads the same .env; TRADING_MODE stays `paper`
+# here on purpose. Live trading is a separate deployment (see docs/RUNBOOK.md).
+name: kalshi-agent
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://kalshi:kalshi@postgres:5432/kalshi
+    REDIS_URL: redis://redis:6379/0
+    LOG_JSON: "true"
+  volumes:
+    - agent-state:/app/state
+    - ./secrets:/run/secrets:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kalshi
+      POSTGRES_PASSWORD: kalshi
+      POSTGRES_DB: kalshi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kalshi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  migrate:
+    <<: *app
+    command: []
+    entrypoint: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  collector:
+    <<: *app
+    command: ["collect"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  engine:
+    <<: *app
+    command: ["trade"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    command: ["api"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  agent-state:
