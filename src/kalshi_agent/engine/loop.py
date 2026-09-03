@@ -67,7 +67,15 @@ class TradingEngine:
         self.portfolio = portfolio
         self.settings = settings
         self.fetch_orderbooks = fetch_orderbooks
-        self.feeds = feeds if feeds is not None else build_feeds(list(strategy.feeds))
+        self.feeds = (
+            feeds
+            if feeds is not None
+            else build_feeds(
+                list(strategy.feeds),
+                ws_url=settings.kalshi_ws_url,
+                signer=client.signer,
+            )
+        )
         self.recent_orders: list[tuple[str, datetime]] = []
         self.daily_pnl_cents = 0
         self._day = datetime.now(UTC).date()

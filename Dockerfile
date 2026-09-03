@@ -18,10 +18,14 @@ COPY alembic ./alembic
 
 RUN pip install --upgrade pip && pip install .
 
-# Non-root user; the kill-switch file lives in /app/state
-RUN useradd --create-home agent && mkdir -p /app/state && chown -R agent:agent /app
+# Non-root user. A named volume mounted over a path that exists in the image inherits that
+# path's ownership, so /data/captures must be created here or the recorder cannot write.
+RUN useradd --create-home agent \
+    && mkdir -p /app/state /data/captures \
+    && chown -R agent:agent /app /data
 USER agent
-ENV RISK_KILL_SWITCH_FILE=/app/state/KILL_SWITCH
+ENV RISK_KILL_SWITCH_FILE=/app/state/KILL_SWITCH \
+    CAPTURES_DIR=/data/captures
 
 ENTRYPOINT ["kalshi-agent"]
 CMD ["--help"]

@@ -24,14 +24,27 @@ class DataFeed(ABC):
         return None
 
 
-def build_feeds(names: set[str] | list[str]) -> list[DataFeed]:
-    from kalshi_agent.data.crypto import CoinbaseFeed
+def build_feeds(names: set[str] | list[str], **context: Any) -> list[DataFeed]:
+    """Construct the named feeds.
 
-    registry: dict[str, type[DataFeed]] = {CoinbaseFeed.name: CoinbaseFeed}
+    ``context`` supplies what a feed needs but cannot discover for itself; the Kalshi index
+    feed needs the websocket url and a request signer.
+    """
+    from kalshi_agent.data.crypto import CoinbaseFeed
+    from kalshi_agent.data.kalshi_index import KalshiIndexFeed
+
     feeds: list[DataFeed] = []
     for name in dict.fromkeys(names):  # de-dupe, keep order
-        try:
-            feeds.append(registry[name]())
-        except KeyError as exc:
-            raise KeyError(f"unknown data feed {name!r}; available: {sorted(registry)}") from exc
+        if name == CoinbaseFeed.name:
+            feeds.append(CoinbaseFeed())
+        elif name == KalshiIndexFeed.name:
+            ws_url, signer = context.get("ws_url"), context.get("signer")
+            if not ws_url or signer is None:
+                raise ValueError(
+                    "the kalshi_index feed needs Kalshi credentials: the exchange "
+                    "authenticates the websocket even for public market data"
+                )
+            feeds.append(KalshiIndexFeed(ws_url, signer, index_ids=context.get("index_ids")))
+        else:
+            raise KeyError(f"unknown data feed {name!r}")
     return feeds

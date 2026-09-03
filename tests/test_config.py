@@ -7,7 +7,7 @@ def test_defaults_are_paper_on_prod_exchange():
     s = Settings(_env_file=None)
     assert s.trading_mode is TradingMode.PAPER
     assert s.kalshi_env is KalshiEnv.PROD
-    assert s.strategy_name == "crypto_15m"
+    assert s.strategy_name == "averaging_gap"
     assert s.collector_series_tickers == ["KXBTC15M", "KXETH15M"]
     assert "api.elections.kalshi.com" in s.kalshi_base_url
     assert Settings(_env_file=None, kalshi_env="demo").kalshi_base_url.startswith(

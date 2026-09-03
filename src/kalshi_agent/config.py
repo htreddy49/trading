@@ -85,8 +85,8 @@ class Settings(BaseSettings):
     collector_max_markets: int = 200
 
     # --- engine ------------------------------------------------------------------
-    engine_interval_seconds: float = 15.0
-    strategy_name: str = "crypto_15m"
+    engine_interval_seconds: float = 2.0
+    strategy_name: str = "averaging_gap"
     strategy_params: dict[str, float] = Field(default_factory=dict)
 
     # --- risk limits (all money in cents) ----------------------------------------

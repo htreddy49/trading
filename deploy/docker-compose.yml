@@ -1,0 +1,91 @@
+# Continuous recording and paper trading on a cloud host.
+#
+# Deliberately not the same file as the development stack at the repository root: this one
+# runs the recorder, keeps its data on a named volume, and is restart-safe across reboots.
+# TRADING_MODE stays paper here. Live trading is a separate, deliberate change.
+name: kalshi-agent
+
+x-common: &common
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  env_file: ../.env
+  environment:
+    DATABASE_URL: postgresql+psycopg://kalshi:${POSTGRES_PASSWORD:-kalshi}@postgres:5432/kalshi
+    CAPTURES_DIR: /data/captures
+    LOG_JSON: "true"
+    TRADING_MODE: paper
+  volumes:
+    - captures:/data/captures
+    - agent-state:/app/state
+    - ../secrets:/app/secrets:ro
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kalshi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kalshi}
+      POSTGRES_DB: kalshi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kalshi"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    <<: *common
+    entrypoint: ["alembic", "upgrade", "head"]
+    command: []
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # The reason this host exists. Captures the settlement index and order books 24/7.
+  recorder:
+    <<: *common
+    command: ["record", "--out", "/data/captures"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Paper trading. Simulated fills, virtual money, no orders reach the exchange.
+  engine:
+    <<: *common
+    command: ["trade"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  api:
+    <<: *common
+    command: ["api"]
+    ports:
+      - "127.0.0.1:8000:8000"   # bound to localhost; reach it over an SSH tunnel
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Deletes captures older than the retention window. Without this the disk fills in weeks.
+  janitor:
+    image: alpine:3.20
+    volumes:
+      - captures:/data/captures
+    environment:
+      RETENTION_DAYS: ${RETENTION_DAYS:-14}
+    command: >
+      sh -c 'while true; do
+        find /data/captures -name "capture-*.jsonl.gz" -mtime +$${RETENTION_DAYS} -delete;
+        du -sh /data/captures;
+        sleep 3600;
+      done'
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  captures:
+  agent-state:

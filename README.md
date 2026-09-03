@@ -20,7 +20,7 @@ Kalshi ─► Market Collector ─► Market DB ─► Strategy ─► Edge Dete
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design,
 [docs/CRYPTO_15M.md](docs/CRYPTO_15M.md) for the 15-minute crypto strategy the defaults
-target, [docs/RECORDER.md](docs/RECORDER.md) for the data capture that phase one is built on, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
+target, [docs/RECORDER.md](docs/RECORDER.md) for the data capture, [docs/DEPLOY.md](docs/DEPLOY.md) for running it continuously, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
 
 ## What is in the box
 
@@ -32,8 +32,10 @@ target, [docs/RECORDER.md](docs/RECORDER.md) for the data capture that phase one
 | Postgres/SQLite schema + Alembic migrations (markets, snapshots, signals, decisions, orders, fills, positions, P&L, strategy versions, backtests, errors) | `kalshi_agent.db` | done |
 | Market collector (polls markets, writes snapshots) | `kalshi_agent.collector` | done |
 | Strategy interface + registry + baseline strategies | `kalshi_agent.strategy` | done |
-| `crypto_15m`: lognormal model for 15-minute BTC/ETH strike markets | `kalshi_agent.strategy.crypto` | done |
-| Data feeds: Coinbase spot + realized volatility | `kalshi_agent.data` | done |
+| `averaging_gap`: trades the divergence between the index and the average that settles the contract | `kalshi_agent.strategy.averaging_gap` | done |
+| `crypto_15m`: lognormal model against a crypto-exchange price | `kalshi_agent.strategy.crypto` | superseded |
+| Data feeds: Kalshi's own settlement index, and Coinbase spot | `kalshi_agent.data` | done |
+| Cloud deployment for continuous recording | `deploy/` | done |
 | Edge detector (net of Kalshi fees) | `kalshi_agent.signals` | done |
 | Risk engine: kill switch, exchange status, edge, liquidity, spread, size, position, exposure, daily loss, duplicate order | `kalshi_agent.risk` | done |
 | Paper broker with orderbook-walking fills and virtual P&L | `kalshi_agent.execution.paper` | done |
