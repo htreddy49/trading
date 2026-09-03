@@ -9,7 +9,7 @@
       "version": "22"
     }
   },
-  "postCreateCommand": "pip install uv && uv venv .venv && uv pip install -e '.[dev]' && cp -n .env.example .env || true",
+  "postCreateCommand": "make install",
   "forwardPorts": [
     8000,
     5432,

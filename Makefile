@@ -2,10 +2,17 @@
 
 VENV ?= .venv
 BIN  := $(VENV)/bin
+UV   := $(shell command -v uv 2>/dev/null)
 
+# Uses uv when available (fast); falls back to the standard library venv + pip.
 install:
-	uv venv $(VENV) && uv pip install -e ".[dev]"
+ifdef UV
+	uv venv $(VENV) && VIRTUAL_ENV=$(VENV) uv pip install -e ".[dev]"
+else
+	python3 -m venv $(VENV) && $(BIN)/pip install -q --upgrade pip && $(BIN)/pip install -q -e ".[dev]"
+endif
 	@test -f .env || cp .env.example .env
+	@echo "installed. next: $(BIN)/kalshi-agent setup"
 
 lint:
 	$(BIN)/ruff check .
