@@ -11,8 +11,10 @@
 
 ## Next steps
 
-1. **Collect data.** Run the collector for a few weeks against the series you care
-   about (`COLLECTOR_SERIES_TICKERS`) so the backtester has history.
+1. **Record data.** `kalshi-agent record` captures the settlement index and the order
+   books over one WebSocket connection. See [RECORDER.md](RECORDER.md). This replaces
+   snapshot polling for the crypto strategy, because the polling collector cannot
+   capture the settlement statistic at all.
 2. **Dashboard.** A zero-build dashboard ships at `/` with Paper trader and Live trader
    tabs (equity, positions, orders, decisions, kill switch). A richer Next.js frontend is
    still open: market browser, backtest comparison, per-strategy calibration charts.

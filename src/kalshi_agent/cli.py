@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -151,6 +153,82 @@ def collect(
                 await collector.run_forever(s.collector_interval_seconds)
 
     asyncio.run(main())
+
+
+@app.command()
+def record(
+    series: Annotated[str, typer.Option(help="Comma separated series to capture")] = "KXBTC15M",
+    indices: Annotated[str, typer.Option(help="Comma separated CF Benchmarks index ids")] = "BRTI",
+    out: Annotated[str, typer.Option(help="Directory for capture files")] = "./captures",
+    strikes: Annotated[
+        bool, typer.Option(help="Poll each window across its open to time the strike")
+    ] = True,
+) -> None:
+    """Record the index feed and order books to disk. Places no orders."""
+    import signal
+
+    from kalshi_agent.kalshi.client import KalshiClient
+    from kalshi_agent.kalshi.ws import KalshiWebSocket
+    from kalshi_agent.recorder.service import Recorder
+    from kalshi_agent.recorder.writer import RecordWriter
+
+    s = get_settings()
+    if not s.has_kalshi_credentials:
+        typer.secho(
+            "Kalshi credentials are required: the exchange authenticates the websocket "
+            "even for public market data. Run `kalshi-agent setup` first.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+
+    series_list = [x.strip() for x in series.split(",") if x.strip()]
+    index_list = [x.strip() for x in indices.split(",") if x.strip()]
+
+    async def main() -> None:
+        client = KalshiClient.from_settings(s)
+        assert client.signer is not None
+        ws = KalshiWebSocket(s.kalshi_ws_url, client.signer)
+        writer = RecordWriter(out)
+        recorder = Recorder(
+            client, ws, writer, series=series_list, index_ids=index_list, watch_strikes=strikes
+        )
+
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            with contextlib.suppress(NotImplementedError):
+                loop.add_signal_handler(sig, lambda: asyncio.ensure_future(recorder.stop()))
+
+        typer.echo(f"recording {series_list} + {index_list} -> {out}  (ctrl-c to stop)")
+        try:
+            await recorder.run()
+        finally:
+            await recorder.stop()
+            await client.close()
+            typer.echo(f"stopped. {writer.records_written} records written to {out}")
+
+    asyncio.run(main())
+
+
+@app.command("capture-stats")
+def capture_stats(
+    directory: Annotated[str, typer.Argument(help="Capture directory")] = "./captures",
+) -> None:
+    """Report whether a capture is healthy and usable."""
+    from kalshi_agent.recorder.inspect import summarise
+
+    path = Path(directory)
+    if not path.is_dir():
+        typer.secho(f"no such directory: {directory}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    summary = summarise(path)
+    typer.echo(json.dumps(summary.as_dict(), indent=2))
+    if summary.records == 0:
+        typer.secho("no records captured yet", fg=typer.colors.YELLOW)
+    elif summary.index_rate_hz < 0.5:
+        typer.secho(
+            "index feed is slower than once every two seconds; check the subscription",
+            fg=typer.colors.YELLOW,
+        )
 
 
 @app.command()

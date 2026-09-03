@@ -20,14 +20,15 @@ Kalshi ─► Market Collector ─► Market DB ─► Strategy ─► Edge Dete
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design,
 [docs/CRYPTO_15M.md](docs/CRYPTO_15M.md) for the 15-minute crypto strategy the defaults
-target, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
+target, [docs/RECORDER.md](docs/RECORDER.md) for the data capture that phase one is built on, and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased plan.
 
 ## What is in the box
 
 | Component | Module | Status |
 | --- | --- | --- |
 | Kalshi REST client with RSA-PSS request signing, retries | `kalshi_agent.kalshi` | done |
-| Kalshi WebSocket subscriber | `kalshi_agent.kalshi.ws` | minimal |
+| Kalshi WebSocket client: auth, reconnect, sequence-gap detection | `kalshi_agent.kalshi.ws` | done |
+| Recorder: captures the settlement index and order books to disk, places no orders | `kalshi_agent.recorder` | done |
 | Postgres/SQLite schema + Alembic migrations (markets, snapshots, signals, decisions, orders, fills, positions, P&L, strategy versions, backtests, errors) | `kalshi_agent.db` | done |
 | Market collector (polls markets, writes snapshots) | `kalshi_agent.collector` | done |
 | Strategy interface + registry + baseline strategies | `kalshi_agent.strategy` | done |
@@ -80,7 +81,9 @@ Docker-in-Docker, Node 22, the Claude Code extension, and the project itself.
 | `kalshi-agent setup` | Create the git-ignored `.env` and `secrets/kalshi.pem` from your key id and PEM |
 | `kalshi-agent status` | Effective config, Kalshi connectivity, balance, kill-switch state |
 | `kalshi-agent db init` | Create tables (dev). Production: `alembic upgrade head` |
-| `kalshi-agent collect [--once] [--orderbooks]` | Market collector |
+| `kalshi-agent record [--series ...] [--indices ...]` | Capture the index feed and order books to disk |
+| `kalshi-agent capture-stats <dir>` | Report whether a capture is healthy |
+| `kalshi-agent collect [--once] [--orderbooks]` | Polling market collector |
 | `kalshi-agent trade [--once]` | Trading engine, paper or live per `TRADING_MODE` |
 | `kalshi-agent backtest --days 30 [--strategy x] [--params '{...}']` | Backtest stored snapshots |
 | `kalshi-agent api` | Dashboard on `:8000`, API docs at `/docs` |
