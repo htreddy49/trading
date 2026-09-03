@@ -45,7 +45,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design and
 
 ```bash
 make install               # uv venv + editable install, copies .env.example -> .env
-# put your demo API key id in .env and the PEM in ./secrets/kalshi-demo.pem
+.venv/bin/kalshi-agent setup       # asks for your API key id and private key, writes .env + secrets/
 .venv/bin/kalshi-agent status
 .venv/bin/kalshi-agent collect --once      # pull open markets into the DB
 .venv/bin/kalshi-agent trade --once        # one paper-trading cycle
@@ -73,6 +73,7 @@ Docker-in-Docker, Node 22, the Claude Code extension, and the project itself.
 
 | Command | Purpose |
 | --- | --- |
+| `kalshi-agent setup` | Create the git-ignored `.env` and `secrets/kalshi-demo.pem` from your key id and PEM |
 | `kalshi-agent status` | Effective config, Kalshi connectivity, balance, kill-switch state |
 | `kalshi-agent db init` | Create tables (dev). Production: `alembic upgrade head` |
 | `kalshi-agent collect [--once] [--orderbooks]` | Market collector |

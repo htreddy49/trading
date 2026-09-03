@@ -58,6 +58,52 @@ def status() -> None:
     asyncio.run(check())
 
 
+@app.command()
+def setup(
+    key_id: Annotated[str | None, typer.Option(help="Kalshi API key id")] = None,
+    pem_file: Annotated[str | None, typer.Option(help="Path to the downloaded private key")] = None,
+) -> None:
+    """Create the local, git-ignored credential files: .env and secrets/kalshi-demo.pem."""
+    import re
+    import shutil
+    from pathlib import Path
+
+    env_path, example = Path(".env"), Path(".env.example")
+    if not env_path.exists():
+        shutil.copy(example, env_path)
+        typer.echo("created .env from .env.example")
+
+    key_id = key_id or typer.prompt("Kalshi API key id")
+    text = env_path.read_text()
+    text, n = re.subn(r"^KALSHI_API_KEY_ID=.*$", f"KALSHI_API_KEY_ID={key_id}", text, flags=re.M)
+    if not n:
+        text += f"\nKALSHI_API_KEY_ID={key_id}\n"
+    env_path.write_text(text)
+    typer.echo("wrote KALSHI_API_KEY_ID to .env")
+
+    secrets_dir = Path("secrets")
+    secrets_dir.mkdir(exist_ok=True)
+    target = secrets_dir / "kalshi-demo.pem"
+    if pem_file:
+        pem = Path(pem_file).read_text()
+    else:
+        typer.echo("Paste the private key (including BEGIN/END lines), then press Enter:")
+        lines: list[str] = []
+        while True:
+            line = input()
+            lines.append(line)
+            if line.startswith("-----END"):
+                break
+        pem = "\n".join(lines) + "\n"
+    if "PRIVATE KEY-----" not in pem:
+        typer.secho("that does not look like a PEM private key", fg=typer.colors.RED)
+        raise typer.Exit(1)
+    target.write_text(pem)
+    target.chmod(0o600)
+    typer.echo(f"wrote {target}")
+    typer.echo("done. next: kalshi-agent status")
+
+
 @db_app.command("init")
 def db_init() -> None:
     """Create all tables (dev). Use ``alembic upgrade head`` in production."""
