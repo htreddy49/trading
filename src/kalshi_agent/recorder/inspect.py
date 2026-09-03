@@ -26,6 +26,8 @@ class CaptureSummary:
     first_ns: int | None = None
     last_ns: int | None = None
     index_ticks: int = 0
+    index_fields: Counter[str] = field(default_factory=Counter)
+    windowed_field_names: set[str] = field(default_factory=set)
     index_gaps_over_2s: int = 0
     max_index_gap_s: float = 0.0
     sequence_gaps: int = 0
@@ -59,8 +61,12 @@ class CaptureSummary:
             "settlement_window_ticks": self.windowed_average_ticks,
             "sequence_gaps": self.sequence_gaps,
             "strikes_timed": len(self.strike_delays),
-            "strike_delay_median_s": round(delays[len(delays) // 2], 2) if delays else None,
-            "strike_delay_max_s": round(delays[-1], 2) if delays else None,
+            # Delays are reported in full: with only a handful of windows a median hides
+            # the one measurement that matters, and windows already open when recording
+            # started produce a large meaningless value.
+            "strike_delays_s": [round(d, 2) for d in delays],
+            "index_fields_seen": sorted(self.index_fields),
+            "windowed_fields_seen": sorted(self.windowed_field_names),
             "errors": len(self.errors),
         }
 
@@ -86,8 +92,23 @@ def summarise(directory: str | Path) -> CaptureSummary:
 
             if channel.startswith("cfbenchmarks"):
                 s.index_ticks += 1
-                if body.get("last_60s_windowed_average_15min") is not None:
-                    s.windowed_average_ticks += 1
+                s.index_fields.update(body.keys())
+                # The settlement statistic is only published in the final minute, and the
+                # exact field name is the exchange's to choose. Match on shape rather than
+                # on one hardcoded name, and report which names were actually seen, so a
+                # rename shows up as a changed name instead of a silent zero.
+                for key, value in body.items():
+                    lowered = key.lower()
+                    if value is None:
+                        continue
+                    if (
+                        "window" in lowered
+                        or ("15" in lowered and "avg" in lowered)
+                        or ("15" in lowered and "average" in lowered)
+                    ):
+                        s.windowed_average_ticks += 1
+                        s.windowed_field_names.add(key)
+                        break
                 if last_index_ns is not None and isinstance(ts, int):
                     gap = (ts - last_index_ns) / NS_PER_SECOND
                     s.max_index_gap_s = max(s.max_index_gap_s, gap)

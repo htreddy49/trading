@@ -390,7 +390,9 @@ def test_capture_summary(tmp_path):
     assert s["sequence_gaps"] == 1
     assert s["markets_seen"] == 1
     assert s["strikes_timed"] == 1
-    assert s["strike_delay_median_s"] == 1.75, "the earliest sighting is the true delay"
+    assert s["strike_delays_s"] == [1.75], "the earliest sighting is the true delay"
+    assert "last_60s_windowed_average_15min" in s["windowed_fields_seen"]
+    assert "value" in s["index_fields_seen"]
 
 
 def test_capture_summary_empty_directory(tmp_path):
@@ -398,3 +400,36 @@ def test_capture_summary_empty_directory(tmp_path):
 
     s = summarise(tmp_path).as_dict()
     assert s["records"] == 0 and s["files"] == 0 and s["index_rate_hz"] == 0.0
+
+
+def test_summary_finds_the_settlement_field_under_any_plausible_name(tmp_path):
+    """The exchange names this field, not us. Match on shape and report what was seen."""
+    from kalshi_agent.recorder.inspect import summarise
+
+    for name in (
+        "last_60s_windowed_average_15min",
+        "windowed_average",
+        "quarter_hour_window_avg",
+        "avg_15min",
+    ):
+        directory = tmp_path / name
+        w = RecordWriter(directory, flush_every=1)
+        w.write("cfbenchmarks_value", {"sid": 1, "seq": 1, "msg": {name: "109990.00"}})
+        w.close()
+        s = summarise(directory).as_dict()
+        assert s["settlement_window_ticks"] == 1, f"missed the settlement field named {name}"
+        assert s["windowed_fields_seen"] == [name]
+
+
+def test_summary_does_not_count_ordinary_index_fields_as_settlement(tmp_path):
+    from kalshi_agent.recorder.inspect import summarise
+
+    w = RecordWriter(tmp_path, flush_every=1)
+    w.write(
+        "cfbenchmarks_value",
+        {"sid": 1, "seq": 1, "msg": {"value": "110000.00", "last_60s_average": "109990.00"}},
+    )
+    w.close()
+    s = summarise(tmp_path).as_dict()
+    assert s["settlement_window_ticks"] == 0
+    assert s["index_fields_seen"] == ["last_60s_average", "value"]
