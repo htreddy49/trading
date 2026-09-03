@@ -16,7 +16,7 @@ Never point the dev or staging stack at `KALSHI_ENV=prod`.
 # on the VM
 git clone https://github.com/htreddy49/trading.git && cd trading
 cp .env.example .env            # edit: KALSHI_ENV, TRADING_MODE, key id, risk limits
-mkdir -p secrets && chmod 700 secrets   # put the PEM here or use KALSHI_PRIVATE_KEY_PEM
+mkdir -p secrets && chmod 700 secrets   # PEM at ./secrets/kalshi-demo.pem, mounted read-only into containers
 docker compose up -d --build
 docker compose logs -f engine
 ```

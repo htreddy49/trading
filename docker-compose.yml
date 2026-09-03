@@ -11,7 +11,7 @@ x-app: &app
     LOG_JSON: "true"
   volumes:
     - agent-state:/app/state
-    - ./secrets:/run/secrets:ro
+    - ./secrets:/app/secrets:ro
   depends_on:
     postgres:
       condition: service_healthy
