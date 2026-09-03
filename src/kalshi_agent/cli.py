@@ -249,13 +249,23 @@ def api(
 
     from kalshi_agent.db.session import get_engine, init_db
 
+    import os
+
     s = get_settings()
     init_db(get_engine())
+    port = port or s.api_port
+    codespace = os.environ.get("CODESPACE_NAME")
+    domain = os.environ.get("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN")
+    if codespace and domain:
+        url = f"https://{codespace}-{port}.{domain}/docs"
+    else:
+        url = f"http://localhost:{port}/docs"
+    typer.secho(f"open the API docs at: {url}", fg=typer.colors.GREEN, bold=True)
     uvicorn.run(
         "kalshi_agent.api.app:app",
         factory=True,
         host=host or s.api_host,
-        port=port or s.api_port,
+        port=port,
         reload=reload,
     )
 
