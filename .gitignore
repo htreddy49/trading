@@ -11,6 +11,9 @@ dist/
 
 # local state
 .env
+captures/
+*.jsonl
+*.jsonl.gz
 *.db
 *.db-*
 KILL_SWITCH
